@@ -228,7 +228,7 @@ for i in range(args.resume_iter, args.total_iters):
 
     # compute FID and LPIPS if necessary
     args.val_batch_size = 32  # for evaluating
-    args.num_outs_per_domain = 10  # было 2 для быстрого тестирования
+    args.num_outs_per_domain = 10
     if (i+1) % args.eval_every == 0:
         lpips_latent, fid_latent = calculate_metrics(nets_ema, args, i+1, mode='latent')
         lpips_reference, fid_reference = calculate_metrics(nets_ema, args, i+1, mode='reference')
