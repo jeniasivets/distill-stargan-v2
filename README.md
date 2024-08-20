@@ -24,30 +24,6 @@ Knowledge distillation operates on a "teacher-student" paradigm, where a smaller
 
 The proposed distillation technique is designed to be agnostic to specific generator architectures, incorporating various prior approaches. It combines multiple penalty functions across different neural network components.
 
-### References
-
-[1] Angeline Aguinaldo, Ping-Yeh Chiang, Alexander Gain, Ameya Patil,
-Kolten Pearson, and Soheil Feizi. Compressing GANs using knowledge
-distillation.
-
-[2] Hanting Chen, Yunhe Wang, Han Shu, Changyuan Wen, Chunjing Xu,
-Boxin Shi, Chao Xu, and Chang Xu. Distilling portable generative
-adversarial networks for image translation.
-
-[5] Qing Jin, Jian Ren, Oliver J. Woodford, Jiazhuo Wang, Geng Yuan,
-YanzhiWang, and Sergey Tulyakov. Teachers do more than teach: Compressing
-image-to-image models.
-
-[7] Muyang Li, Ji Lin, Yaoyao Ding, Zhijian Liu, Jun-Yan Zhu, and Song
-Han. GAN compression: Efficient architectures for interactive conditional
-GANs.
-
-[8] Huan Wang, Yijun Li, Yuehai Wang, Haoji Hu, and Ming-Hsuan Yang.
-Collaborative distillation for ultra-resolution universal style transfer.
-
-[10] Linfeng Zhang, Xin Chen, Xiaobing Tu, Pengfei Wan, Ning Xu, and
-Kaisheng Ma. Wavelet knowledge distillation: Towards efficient imageto-
-image translation.
 
 ### Installation and Usage
 
@@ -91,7 +67,6 @@ bash download.sh afhq-dataset
 bash download.sh pretrained-network-afhq
 ```
 
-
 ### Evaluation metrics
 To evaluate StarGAN v2 using [Fr&eacute;chet Inception Distance (FID)](https://arxiv.org/abs/1706.08500) and [Learned Perceptual Image Patch Similarity (LPIPS)](https://arxiv.org/abs/1801.03924), run the following commands:
 
@@ -133,7 +108,31 @@ python main.py --mode train --num_domains 3 --w_hpf 0 \
 ### Generated Examples
 To compress the model, we restrict the maximum number of channels in the convolution layers and the maximum number of hidden nodes in the linear layers for all the networks in StarGAN v2 pipeline.
 
-| Teacher                                                    |    Student x22 less                                                   | 
-|------------------------------------------------------------|----------------------------------------------------------------------------------|
-| <img src="images/celeba_hq_512_new.drawio_compressed.jpg"> | <img src="images/tiny_celeba_hq_128_my_distill.drawio_compressed.jpg"> |  
+| Teacher                                                              | Student x22 less                                                                 | 
+|----------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| <img src="images/celeba_hq_512_new.drawio_compressed.jpg" width=70%> | <img src="images/tiny_celeba_hq_128_my_distill.drawio_compressed.jpg" width=70%> |  
 
+### References
+
+[1] Angeline Aguinaldo, Ping-Yeh Chiang, Alexander Gain, Ameya Patil,
+Kolten Pearson, and Soheil Feizi. Compressing GANs using knowledge
+distillation.
+
+[2] Hanting Chen, Yunhe Wang, Han Shu, Changyuan Wen, Chunjing Xu,
+Boxin Shi, Chao Xu, and Chang Xu. Distilling portable generative
+adversarial networks for image translation.
+
+[5] Qing Jin, Jian Ren, Oliver J. Woodford, Jiazhuo Wang, Geng Yuan,
+YanzhiWang, and Sergey Tulyakov. Teachers do more than teach: Compressing
+image-to-image models.
+
+[7] Muyang Li, Ji Lin, Yaoyao Ding, Zhijian Liu, Jun-Yan Zhu, and Song
+Han. GAN compression: Efficient architectures for interactive conditional
+GANs.
+
+[8] Huan Wang, Yijun Li, Yuehai Wang, Haoji Hu, and Ming-Hsuan Yang.
+Collaborative distillation for ultra-resolution universal style transfer.
+
+[10] Linfeng Zhang, Xin Chen, Xiaobing Tu, Pengfei Wan, Ning Xu, and
+Kaisheng Ma. Wavelet knowledge distillation: Towards efficient imageto-
+image translation.
