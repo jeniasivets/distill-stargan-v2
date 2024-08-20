@@ -15,23 +15,17 @@ import datetime
 import core.utils as utils
 from metrics.eval import calculate_metrics
 from PIL import Image
-import torch.nn.functional as F
 from args.args import default_args, args_teacher, args_student
+
+from losses import adv_loss, calculate_perceptual_loss, compute_gka_loss, calculate_triplet_loss, WKD
 
 
 def subdirs(dname):
     return [d for d in os.listdir(dname)
             if os.path.isdir(os.path.join(dname, d))]
 
-    
-def adv_loss(logits, target):
-    assert target in [1, 0]
-    targets = torch.full_like(logits, fill_value=target)
-    loss = F.binary_cross_entropy_with_logits(logits, targets)
-    return loss
 
-
-def compute_g_loss(teacher, nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None, lambda_mse=1):
+def compute_g_loss(teacher, nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None):
     assert (z_trgs is None) != (x_refs is None)
     if z_trgs is not None:
         z_trg, z_trg2 = z_trgs
@@ -43,11 +37,11 @@ def compute_g_loss(teacher, nets, args, x_real, y_org, y_trg, z_trgs=None, x_ref
             s_trg = teacher.mapping_network(z_trg, y_trg)
         else:
             s_trg = teacher.style_encoder(x_ref, y_trg)
-        t_fake = teacher.generator(x_real, s_trg, masks=masks)
+        t_fake, t_act = teacher.generator.get_activations(x_real, s_trg, masks=masks)
         s_org = teacher.style_encoder(x_real, y_org)
         
     # mse loss
-    x_fake = nets.generator(x_real, s_trg, masks=None)
+    x_fake, s_act = nets.generator.get_activations(x_real, s_trg, masks=None)
     loss_mse = torch.nn.MSELoss()(x_fake, t_fake)
 
     # cycle-consistency loss
@@ -57,9 +51,33 @@ def compute_g_loss(teacher, nets, args, x_real, y_org, y_trg, z_trgs=None, x_ref
     # adversarial loss
     out = nets.discriminator(x_fake, y_trg)
     loss_adv = adv_loss(out, 1)
-    
-    loss = loss_adv + lambda_mse * loss_mse + args.lambda_cyc * loss_cyc
-    return loss, Munch(mse=loss_mse.item(), cyc=loss_cyc.item(), adv=loss_adv.item())
+
+    # perceptual loss
+    feature_network = teacher.discriminator.main[:-4].eval()
+    perc_loss = calculate_perceptual_loss(t_fake, x_fake, feature_network)
+
+    # gka loss
+    gka_loss = 0
+    for i in range(len(s_act)):
+        gka_loss -= compute_gka_loss(s_act[i], t_act[i])
+
+    # wavelet loss
+    wkd = WKD()
+    wavelet_loss = wkd.get_wavelet_loss(x_fake, t_fake)
+
+    loss = (loss_adv +
+            args.lambda_cyc * loss_cyc +
+            args.lambda_mse * loss_mse +
+            args.lambda_perc * perc_loss +
+            args.lambda_gka * gka_loss +
+            args.lambda_wavelet * wavelet_loss)
+
+    return loss, Munch(mse=loss_mse.item(),
+                       cyc=loss_cyc.item(),
+                       adv=loss_adv.item(),
+                       perc=perc_loss.item(),
+                       gka=gka_loss.item(),
+                       wkd=wavelet_loss.item())
 
 
 def r1_reg(d_out, x_in):
@@ -75,7 +93,7 @@ def r1_reg(d_out, x_in):
     return reg
 
 
-def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None):
+def compute_d_loss(teacher, nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None):
     assert (z_trg is None) != (x_ref is None)
 
     # with fake images
@@ -87,6 +105,9 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
         t_fake = teacher.generator(x_real, s_trg, masks=masks)
         x_fake = nets.generator(x_real, s_trg, masks=None)
 
+    # calculate_triplet_loss
+    triplet_loss = calculate_triplet_loss(x_real, t_fake, x_fake, nets.discriminator)
+
     # with real images (where real are fake from pre-trained teacher)
     t_fake.requires_grad_()    
     out = nets.discriminator(t_fake, y_trg)
@@ -96,16 +117,16 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
     out = nets.discriminator(x_fake, y_trg)
     loss_fake = adv_loss(out, 0)
 
-    loss = loss_real + loss_fake + args.lambda_reg * loss_reg
+    loss = loss_real + loss_fake + args.lambda_reg * loss_reg + args.lambda_triplet * triplet_loss
     return loss, Munch(real=loss_real.item(),
                        fake=loss_fake.item(),
-                       reg=loss_reg.item())
+                       reg=loss_reg.item(),
+                       triplet=triplet_loss.item())
 
 
 def main():
 
     # load teacher
-
     default_args.update(args_teacher)
     args = argparse.Namespace(**default_args)
 
@@ -122,14 +143,12 @@ def main():
     teacher.fan.eval()
 
     # load student
-
     default_args.update(args_student)
     args = argparse.Namespace(**default_args)
 
     solver = Solver(args)
 
     # wandb
-
     wandb.init(project="distill-stargan-v2")
     args.val_batch_size = 4  # for sampling
 
@@ -154,8 +173,7 @@ def main():
                                             shuffle=True,
                                             num_workers=args.num_workers))
 
-    # distill script
-
+    # training with distillation
     nets = solver.nets
     nets_ema = solver.nets_ema
     optims = solver.optims
@@ -178,13 +196,13 @@ def main():
 
         # train the discriminator
         d_loss, d_losses_latent = compute_d_loss(
-            nets, args, x_real, y_org, y_trg, z_trg=z_trg, masks=masks)
+            teacher, nets, args, x_real, y_org, y_trg, z_trg=z_trg, masks=masks)
         solver._reset_grad()
         d_loss.backward()
         optims.discriminator.step()
 
         d_loss, d_losses_ref = compute_d_loss(
-            nets, args, x_real, y_org, y_trg, x_ref=x_ref, masks=masks)
+            teacher, nets, args, x_real, y_org, y_trg, x_ref=x_ref, masks=masks)
         solver._reset_grad()
         d_loss.backward()
         optims.discriminator.step()

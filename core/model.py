@@ -234,7 +234,6 @@ class HighPass(nn.Module):
 
 class Generator(nn.Module):
     def __init__(self, img_size=256, style_dim=64, max_conv_dim=512, w_hpf=1):
-#     def __init__(self, img_size=256, style_dim=64, max_conv_dim=128, w_hpf=1):
         super().__init__()
         dim_in = 2**14 // img_size
         self.img_size = img_size
@@ -286,7 +285,25 @@ class Generator(nn.Module):
                 x = x + self.hpf(mask * cache[x.size(2)])
         return self.to_rgb(x)
 
-    
+    def get_activations(self, x, s, masks=None):
+        x = self.from_rgb(x)
+        cache = {}
+        lst = []
+        for block in self.encode:
+            if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                cache[x.size(2)] = x
+            x = block(x)
+            lst.append(x)
+        for block in self.decode:
+            x = block(x, s)
+            if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                mask = masks[0] if x.size(2) in [32] else masks[1]
+                mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                x = x + self.hpf(mask * cache[x.size(2)])
+            lst.append(x)
+        return self.to_rgb(x), lst
+
+
 class GeneratorStudent(nn.Module):
     def __init__(self, img_size=256, style_dim=64, max_conv_dim=128, w_hpf=1):
         super().__init__()
@@ -339,6 +356,24 @@ class GeneratorStudent(nn.Module):
                 mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
                 x = x + self.hpf(mask * cache[x.size(2)])
         return self.to_rgb(x)
+
+    def get_activations(self, x, s, masks=None):
+        x = self.from_rgb(x)
+        cache = {}
+        lst = []
+        for block in self.encode:
+            if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                cache[x.size(2)] = x
+            x = block(x)
+            lst.append(x)
+        for block in self.decode:
+            x = block(x, s)
+            if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                mask = masks[0] if x.size(2) in [32] else masks[1]
+                mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                x = x + self.hpf(mask * cache[x.size(2)])
+            lst.append(x)
+        return self.to_rgb(x), lst
 
 
 class MobileMappingNetwork(nn.Module):
