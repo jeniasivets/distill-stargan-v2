@@ -110,7 +110,7 @@ To compress the model, we restrict the maximum number of channels in the convolu
 
 | Teacher                                                              | Student x22 less                                                                 | 
 |----------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| <img src="images/celeba_hq_512_new.drawio_compressed.jpg" width=80%> | <img src="images/tiny_celeba_hq_128_my_distill.drawio_compressed.jpg" width=80%> |  
+| <img src="images/celeba_hq_512_new.drawio_compressed.jpg" width=90%> | <img src="images/tiny_celeba_hq_128_my_distill.drawio_compressed.jpg" width=90%> |  
 
 ### References
 
